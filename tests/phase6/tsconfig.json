@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "lib": ["dom", "esnext"],
+    "types": [],
+    "rootDir": "../..",
+    "noEmitOnError": true
+  },
+  "include": [
+    "../../src/modules/media/validation.ts",
+    "../../src/modules/media/confirm-core.ts",
+    "../../src/modules/media/http.ts",
+    "../../src/modules/media/viewerNav.ts",
+    "../../src/modules/media/urlStore.ts",
+    "../../src/modules/media/url-contract.ts",
+    "../../src/modules/media/upload/types.ts",
+    "../../src/modules/media/upload/messages.ts",
+    "../../src/modules/media/upload/metadata.ts",
+    "../../src/modules/media/upload/exif.ts",
+    "../../src/modules/media/upload/coalesce.ts",
+    "../../src/modules/media/upload/summary.ts",
+    "../../src/modules/media/upload/queue.ts"
+  ]
+}

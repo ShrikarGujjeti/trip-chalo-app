@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/modules/auth/session";
-import { deleteMediaObjectBestEffort } from "@/modules/storage/r2";
+import { deleteMediaObjectsBestEffort } from "@/modules/storage/r2";
+import { listAllStorageKeysForTrip } from "@/modules/media/queries";
 import {
   isTripId,
   validateTripName,
@@ -190,16 +191,13 @@ export async function deleteTripAction(
   // owner can see this list regardless of whether their subsequent delete
   // attempt below succeeds, which discloses nothing beyond what the
   // existing media listing query already shows them.
-  const { data: mediaRows, error: mediaLookupError } = await supabase
-    .from("media")
-    .select("storage_key")
-    .eq("trip_id", tripId);
-
-  if (mediaLookupError) {
-    logDatabaseError("delete (media lookup)", mediaLookupError);
-    // Not fatal — proceed with the trip delete attempt regardless. Losing
-    // the ability to best-effort clean up R2 objects is not a reason to
-    // block a trip deletion the owner is otherwise entitled to perform.
+  // Keyset-paginated: correct under any PostgREST max_rows. A failure here is
+  // not fatal -- losing best-effort R2 cleanup must not block an owner's delete.
+  let storageKeys: string[] = [];
+  try {
+    storageKeys = await listAllStorageKeysForTrip(tripId);
+  } catch (err) {
+    console.error("[trips] delete (media key lookup) failed", err);
   }
 
   // Ownership is enforced by trips_delete_owner (RLS, 0007). Cascading
@@ -231,10 +229,8 @@ export async function deleteTripAction(
   // attempted independently via a helper that swallows and logs its own
   // errors (trip_id attached for actionable context), and a failure here
   // is never reported as a trip-deletion failure.
-  if (mediaRows && mediaRows.length > 0) {
-    await Promise.all(
-      mediaRows.map((row) => deleteMediaObjectBestEffort(row.storage_key, { tripId }))
-    );
+  if (storageKeys.length > 0) {
+    await deleteMediaObjectsBestEffort(storageKeys, { tripId });
   }
 
   revalidatePath("/trips");

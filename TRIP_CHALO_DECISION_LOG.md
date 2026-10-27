@@ -488,11 +488,76 @@ replacing direct repository/database analysis.
 code changes. The repository, database, migrations, tests, and project-control
 documents remain authoritative.
 
-The previously recorded Graphify source commit `21532f0f` predates the Phase 5
-implementation and should therefore be treated as **STALE relative to the
-current Phase 5 codebase** until the graph is regenerated.
+The previously recorded Graphify source commit `21532f0f` predates the Phase 6
+working tree and should therefore be treated as **STALE relative to the current
+media implementation** until the graph is regenerated.
 
 ---
+
+## Phase 6 — Media implementation decisions
+
+These decisions are supported by migrations `0016`–`0018` and the current
+application code. The user reports that the local PostgreSQL 17/Supabase reset
+and security suite T1–T19 passed; this task did not rerun those checks. Hosted
+Supabase behavior and live R2 behavior remain unverified.
+
+### Upload confirmation stays behind trusted server code
+
+**Decision:** `confirm_media_upload` and `fail_media_upload` require the
+trusted server role, with EXECUTE granted to `service_role` and revoked from
+`PUBLIC`, `anon`, and `authenticated`. Confirmation also verifies uploader,
+current trip membership, pending state, and actual size. The application checks
+the stored object before confirmation.
+
+**Why:** A client must not mark a pending row ready without the server
+verifying the corresponding uploaded object. Explicit grants and the function
+role check provide separate enforcement layers.
+
+**Status:** Supported by migrations `0016` and `0018`; local SQL test success is
+user-reported. The hosted project’s service-role claim/session shape has not
+been verified.
+
+### Failed-upload state is committed before object cleanup
+
+**Decision:** Oversize or content-type-mismatched uploads transition their
+pending database row to `failed` through the server-only failure path before
+best-effort R2 deletion. The function reports whether it changed the row so a
+late failure call does not delete an object after another call made the row
+ready.
+
+**Why:** Raising an exception after updating inside the same RPC would roll
+back the update. The ordering also avoids deleting an object when a concurrent
+confirmation already succeeded.
+
+**Status:** Supported by migration `0018` and the confirmation action; local
+application/SQL test success is user-reported.
+
+### Revoke unnecessary anonymous function execution
+
+**Decision:** Migration `0017` explicitly revokes `anon` EXECUTE on the Phase 2
+and Phase 5 SECURITY DEFINER functions, and revokes API-role execution on
+trigger functions.
+
+**Why:** Revoking from `PUBLIC` alone does not remove direct grants inherited
+from database default privileges. The explicit revoke makes the intended
+function boundary independent of whether those default privileges were
+configured.
+
+**Status:** Supported by migration `0017`; local SQL test success is
+user-reported. Hosted grants have not been inspected in this task.
+
+### User-facing media navigation and signed URL boundary
+
+**Decision:** Viewer selection is represented by the `media` query parameter;
+the media URL API is a batched Route Handler that performs a user-scoped lookup.
+Storage keys and R2 signing stay server-side.
+
+**Why:** A shareable/deep-linkable viewer state can coexist with user-scoped
+authorization, while signed URLs and internal storage references remain out of
+client route state.
+
+**Status:** Supported by current application code and the approved Phase 6
+Experience Specification. Browser and live R2 behavior remain unverified.
 
 ## Open / Future Decisions
 
@@ -503,20 +568,22 @@ current Phase 5 codebase** until the graph is regenerated.
 No ownership-transfer mechanism has been designed or implemented. This is why
 the owner cannot currently leave their own trip.
 
-### Cloudflare R2
+### Cloudflare R2 operations
 
-**Status:** FUTURE PLAN.
-
-R2 bucket structure, signed URL strategy, upload flow, and external-object
-cleanup remain later-phase work.
+Application integration is present in the Phase 6 working tree. **Live
+verification remains open** for bucket CORS, presigned PUT/Content-Type and
+checksum behavior, signed GET, HEAD/confirm, deletion, and bulk deletion.
+Reconciliation and stale pending-object cleanup remain future operational
+decisions.
 
 ### Media chronology fallback
 
-The schema keeps `captured_at` and `uploaded_at` separate.
+The schema keeps `captured_at` and `uploaded_at` separate. The Phase 6 timeline
+uses capture time where valid and upload time as the fallback; invalid or
+future capture timestamps are treated as unknown.
 
-**Status:** VERIFIED for the schema. Any fallback such as
-`COALESCE(captured_at, uploaded_at)` remains later media-phase behavior unless
-explicitly implemented and verified.
+**Status:** Supported by the application and migration code. Local tests are
+reported passed; browser chronology behavior has not been verified.
 
 ### Chat / Realtime
 

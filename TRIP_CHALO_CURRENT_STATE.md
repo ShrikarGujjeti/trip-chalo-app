@@ -13,32 +13,30 @@ At the start of a new session:
 
 # TRIP CHALO — CURRENT STATE
 
-> Snapshot updated after Phase 5 implementation and live Supabase verification.
-This is CONTEXT, not a substitute for the repository or live database. Before
-consequential work, verify important claims against the actual repository, Git
-state, and Supabase project.
+> Snapshot reconciled for Phase 6 on 2026-10-27. Phase 6 verification details
+> below distinguish repository-verified facts from user-reported execution.
+> This is CONTEXT, not a substitute for the repository, database, or Git state.
 > 
 
 ---
 
 ## Current phase
 
-**Phase 5 — Membership & Invitations**
+**Phase 6 — Media**
 
-**Status: implementation and security verification complete; documentation/Git closure pending**
+**Status:** Media upload, gallery/timeline, viewer, and database hardening are
+present in the working tree. Local application and SQL verification were
+reported as passing. The work is uncommitted. No hosted Supabase, production
+R2, or device verification is reported.
 
 ---
 
 ## Current Git checkpoint
 
-- **Pre-verification checkpoint:** `858bd7d`
-- **Message:** `Complete Phase 5 membership and invitation implementation`
-- **Branch:** `main`
-- **Remote:** `origin`
-- **Push:** completed successfully for `858bd7d`
-- **Checkpoint meaning:** implementation checkpoint before final live verification; not itself proof that Phase 5 was complete
-- **Current status:** Phase 5 implementation verified; final documentation/closure commit still required
-- **Working tree:** must be checked before the final closure commit; this document intentionally does not assume it is clean
+- **HEAD:** `77edda3` — `docs: add phase 6 experience spec`
+- **Branch:** `phase6-integration`
+- **Working tree:** contains uncommitted Phase 6 application, migration, test, and package changes, plus these documentation edits.
+- **Remote/hosted deployment:** no Phase 6 push or hosted Supabase change reported.
 
 ---
 
@@ -93,146 +91,33 @@ confirmed firing correctly under real Phase 3 code, producing a matching
 - Tests 1–3 were independent throwaway-fixture tests, each wrapped in `BEGIN`/`ROLLBACK`; they exercised the hosted Supabase database rather than a local PostgreSQL shim
 - Earlier isolated PostgreSQL verification also passed 26/26 assertions for migrations `0001`–`0011`, but that environment was a shimmed PostgreSQL harness and is supplementary evidence, not a substitute for live verification
 
+### Phase 6 — Media
+
+Repository inspection confirms Phase 6 code, migrations `0016`–`0018`,
+`tests/phase6/`, and `supabase/tests/phase6_media_security_test.sql` are present.
+The package script `test:phase6` runs the Phase 6 application tests.
+
+The following results are **reported by the user, not independently rerun in
+this documentation task**:
+
+- `npm run test:phase6`: 56/56 passed.
+- Local Supabase reset applied migrations `0001`–`0018`; SQL security tests
+  T1–T19 passed on local PostgreSQL 17 as `supabase_admin`.
+- Lint: 0 errors and 1 warning (`<img>` in `MemberAvatar.tsx`). Whether that
+  warning predates this work is unknown.
+
+**Not verified/reported:** hosted Supabase migration state, Cloudflare R2
+end-to-end behavior, deployment, browser/device behavior, and two-account UI
+behavior. Do not treat local database tests as hosted database verification.
+
 ## Current repository state
 
-The tree below records the relevant known project structure. Exact file state
-for unrelated files must still be confirmed from the repository/Git state before
-a closure commit.
-
-```
-trip-chalo-phase1/
-├── CLAUDE.md
-├── eslint.config.mjs
-├── next-env.d.ts
-├── next.config.ts
-├── package-lock.json
-├── package.json
-├── postcss.config.mjs
-├── README.md
-├── tsconfig.json
-├── tsconfig.tsbuildinfo
-├── .env.example
-├── .env.local
-├── .gitignore
-│
-├── public/
-│   ├── file.svg
-│   ├── globe.svg
-│   ├── next.svg
-│   ├── vercel.svg
-│   └── window.svg
-│
-├── src/
-│   ├── proxy.ts
-│   │
-│   ├── app/
-│   │   ├── favicon.ico
-│   │   ├── globals.css
-│   │   ├── layout.tsx
-│   │   ├── page.tsx
-│   │   │
-│   │   ├── (app)/
-│   │   │   ├── layout.tsx
-│   │   │   └── trips/
-│   │   │       ├── error.tsx
-│   │   │       ├── loading.tsx
-│   │   │       ├── page.tsx
-│   │   │       │
-│   │   │       ├── new/
-│   │   │       │   └── page.tsx
-│   │   │       │
-│   │   │       └── [tripId]/
-│   │   │           ├── not-found.tsx
-│   │   │           ├── page.tsx
-│   │   │           │
-│   │   │           └── edit/
-│   │   │               └── page.tsx
-│   │   │
-│   │   ├── (auth)/
-│   │   │   ├── layout.tsx
-│   │   │   ├── login/
-│   │   │   │   └── page.tsx
-│   │   │   └── signup/
-│   │   │       └── page.tsx
-│   │   │
-│   │   └── auth/
-│   │       └── callback/
-│   │           └── route.ts
-│   │
-│   ├── lib/
-│   │   └── supabase/
-│   │       ├── client.ts
-│   │       ├── proxy.ts
-│   │       └── server.ts
-│   │
-│   └── modules/
-│       ├── auth/
-│       │   ├── .gitkeep
-│       │   ├── actions.ts
-│       │   ├── session.ts
-│       │   ├── validation.ts
-│       │   └── components/
-│       │       ├── LoginForm.tsx
-│       │       ├── SignOutButton.tsx
-│       │       └── SignupForm.tsx
-│       │
-│       ├── chat/
-│       │   └── .gitkeep
-│       │
-│       ├── invitations/
-│       │   ├── action.ts
-│       │   ├── queries.ts
-│       │   ├── validation.ts
-│       │   └── components/
-│       │
-│       ├── media/
-│       │   └── .gitkeep
-│       │
-│       ├── memberships/
-│       │   ├── action.ts
-│       │   ├── queries.ts
-│       │   └── components/
-│       │
-│       ├── storage/
-│       │   └── .gitkeep
-│       │
-│       └── trips/
-│           ├── actions.ts
-│           ├── format.ts
-│           ├── queries.ts
-│           ├── validation.ts
-│           └── components/
-│               ├── DeleteTripButton.tsx
-│               └── TripForm.tsx
-│
-└── supabase/
-    ├── .gitignore
-    ├── config.toml
-    │
-    ├── .temp/
-    │   ├── cli-latest
-    │   ├── gotrue-version
-    │   ├── linked-project.json
-    │   ├── pooler-url
-    │   ├── postgres-version
-    │   ├── project-ref
-    │   ├── rest-version
-    │   ├── storage-migration
-    │   └── storage-version
-    │
-    └── migrations/
-        ├── 0001_profiles.sql
-        ├── 0002_trips.sql
-        ├── 0003_trip_members.sql
-        ├── 0004_invitations.sql
-        ├── 0005_media.sql
-        ├── 0006_messages.sql
-        ├── 0007_rls_policies.sql
-        ├── 0008_grants.sql
-        ├── 0009_trips_select_owner.sql
-        ├── 0010_profile_and_invitation_visibility.sql
-        └── 0011_invitation_email_case_insensitivity.sql
-```
+The Phase 6 working tree contains the media upload, timeline/gallery, viewer,
+and signed-URL flow; storage integration; migrations `0016`–`0018`; and the
+application and SQL security test suites. `package.json` exposes the
+`test:phase6` script. Git status shows these implementation, test, migration,
+and package changes are uncommitted. Inspect the live tree and `git status`
+before relying on this summary.
 
 ## Confirmed architecture in active use
 
@@ -249,6 +134,8 @@ are present under `src/modules/invitations/` and `src/modules/memberships/`
 - Migrations `0010_profile_and_invitation_visibility.sql` and
 `0011_invitation_email_case_insensitivity.sql` are present and have been
 deployed to the linked hosted Supabase project
+- Phase 6 migrations `0016`–`0018` and the media upload/viewer modules are
+present locally; hosted application/database behavior is not established here
 
 Deleted (confirmed):
 
@@ -283,35 +170,19 @@ After code changes, refresh with:
 
 `graphify update .`
 
-Do not assume the graph is current without checking its source commit.
+The graph predates the Phase 6 working tree and is stale for current media
+structure. Do not assume it is current without checking its source commit.
 
 ---
 
 ## Current work / next step
 
-**Phase 5 — Membership & Invitations**
-
-Phase 5 implementation is complete from an implementation and live security-verification perspective. The remaining work is project-control closure: reconcile the canonical documentation, verify the final Git diff/status, and create/push the final closure checkpoint.
-
-### Verified Phase 5 implementation
-
-- Any current trip member may invite another person.
-- Invitation email is normalized to trimmed lowercase form at the application boundary and protected by database normalization/uniqueness behavior.
-- Pending invitees do not receive direct trip SELECT access merely because an invitation exists.
-- Pending invitees use the narrow `get_invited_trip_preview` SECURITY DEFINER RPC, exposing exactly `trip_id`, `name`, `start_date`, and `end_date`.
-- Invitation accept/decline/revoke status transitions are performed through SECURITY DEFINER functions; direct invitation UPDATE/DELETE access is not granted through the Data API.
-- Trip-member insertion is not directly granted; membership changes occur through the approved paths.
-- A non-owner member may leave; the owner cannot leave because ownership transfer is not currently implemented.
-- Profile visibility is restricted to the owner/self plus safe co-member visibility established by migration `0010`.
-
-### Current closure gate
-
-1. Replace/update `TRIP_CHALO_CURRENT_STATE.md`, `TRIP_CHALO_DECISION_LOG.md`, and `TRIP_CHALO_HANDOFF.md` so they reflect the verified Phase 5 state.
-2. Recheck the actual Git diff/status and ensure only intended documentation/closure changes remain.
-3. Create the final Phase 5 closure commit and push it.
-4. Treat that final commit as the new authoritative checkpoint.
-
-Phase 5 should not be reopened unless a concrete defect/regression is found or an explicit project decision changes its approved behavior.
+**Phase 6 — Media.** The implementation and local checks are present/reported,
+but remain uncommitted. Before deployment, review the full source/database diff
+and confirm the hosted migration state. Then verify on a staging/branch project,
+exercise real R2 upload/confirm/download/delete, and run browser/device and
+two-account checks. Do not treat the local PostgreSQL test run as hosted
+Supabase verification.
 
 ## Important recent decisions (see `TRIP_CHALO_DECISION_LOG.md` for full detail)
 

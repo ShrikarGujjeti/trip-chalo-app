@@ -4,25 +4,15 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Shape check for a media id taken from a URL segment, form field, or RPC
- * parameter. Mirrors isTripId (trips/validation.ts) and isInvitationId
- * (invitations/validation.ts) exactly: a well-formedness check, not an
- * authorization check. Rejecting a malformed id before it reaches the
- * database keeps it in the same "nothing here" bucket as a well-formed
- * but inaccessible id, rather than surfacing a distinguishable Postgres
- * 22P02 invalid-input error through a different code path — the same
- * not-found-indistinguishability convention used throughout this project.
+ * Well-formedness check for a media id (not authorization). Accepts unknown
+ * because values arrive from the network where TypeScript types are not
+ * enforced at runtime.
  */
-export function isMediaId(value: string): boolean {
-  return UUID_PATTERN.test(value);
+export function isMediaId(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
-/**
- * Mirrors media_type_for_mime() in migration 0012, kept in sync manually.
- * This is a fast, friendly pre-check before round-tripping to the
- * database — the SQL function in 0012 is the actual authorization
- * boundary and is re-checked regardless of what passes here.
- */
+/** Mirrors media_type_for_mime() in 0012. The SQL function is authoritative. */
 export const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
@@ -36,20 +26,20 @@ export const ALLOWED_MIME_TYPES = [
 
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
-const MAX_PHOTO_BYTES = 25 * 1024 * 1024;  // mirrors max_media_bytes_for_type('photo')
-const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // mirrors max_media_bytes_for_type('video')
+export const MAX_PHOTO_BYTES = 25 * 1024 * 1024; // mirrors max_media_bytes_for_type('photo')
+export const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // mirrors max_media_bytes_for_type('video')
 const MAX_FILENAME_LENGTH = 255;
 
-export function isAllowedMimeType(mimeType: string): mimeType is AllowedMimeType {
-  return (ALLOWED_MIME_TYPES as readonly string[]).includes(mimeType);
+export function isAllowedMimeType(mimeType: unknown): mimeType is AllowedMimeType {
+  return typeof mimeType === "string" && (ALLOWED_MIME_TYPES as readonly string[]).includes(mimeType);
 }
 
 function isPhotoMime(mimeType: string): boolean {
   return mimeType.startsWith("image/");
 }
 
-export function validateDeclaredFileSize(mimeType: string, fileSizeBytes: number): ValidationResult {
-  if (!Number.isFinite(fileSizeBytes) || fileSizeBytes <= 0) {
+export function validateDeclaredFileSize(mimeType: string, fileSizeBytes: unknown): ValidationResult {
+  if (typeof fileSizeBytes !== "number" || !Number.isInteger(fileSizeBytes) || fileSizeBytes <= 0) {
     return { valid: false, error: "Invalid file size." };
   }
   const max = isPhotoMime(mimeType) ? MAX_PHOTO_BYTES : MAX_VIDEO_BYTES;
@@ -59,13 +49,41 @@ export function validateDeclaredFileSize(mimeType: string, fileSizeBytes: number
   return { valid: true };
 }
 
-/**
- * original_filename is untrusted display metadata (point 3 of the
- * review): length-limited and never used to build a storage key.
- */
-export function sanitizeOriginalFilename(filename: string | null | undefined): string | null {
-  if (!filename) return null;
+/** Untrusted display metadata: length-limited, never used to build a storage key. */
+export function sanitizeOriginalFilename(filename: unknown): string | null {
+  if (typeof filename !== "string") return null;
   const trimmed = filename.trim();
   if (!trimmed) return null;
   return trimmed.slice(0, MAX_FILENAME_LENGTH);
 }
+
+// ---- Metadata sanitizers (data quality, not security). The database
+// (0016 request_media_upload) applies the same bounds authoritatively. ----
+
+export function sanitizeDimension(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  return value >= 1 && value <= 100000 ? value : null;
+}
+
+export function sanitizeDurationSeconds(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value > 0 && value <= 86400 ? value : null;
+}
+
+const MIN_CAPTURED_AT_MS = Date.UTC(1990, 0, 1);
+/** Spec s13/OD5: a capture time in the future is treated as unknown (null). Kept as a
+ * named constant so an owner-approved tolerance (decision D1) is a one-line change,
+ * but it must then be changed identically in 0016 and in upload/metadata.ts. */
+const MAX_FUTURE_SKEW_MS = 0;
+
+/** Returns a canonical ISO string, or null if missing/unparseable/implausible. */
+export function sanitizeCapturedAt(value: unknown, nowMs: number = Date.now()): string | null {
+  if (typeof value !== "string" || !value) return null;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return null;
+  if (ms < MIN_CAPTURED_AT_MS || ms > nowMs + MAX_FUTURE_SKEW_MS) return null;
+  return new Date(ms).toISOString();
+}
+
+/** Upper bound on ids per signed-URL request (>= the viewer/grid window size). */
+export const MAX_URLS_PER_REQUEST = 60;

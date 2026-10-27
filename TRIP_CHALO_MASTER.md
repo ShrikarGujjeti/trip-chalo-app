@@ -59,7 +59,7 @@ if an actual bottleneck justifies it.
 | Runtime | Node | 22.20.0 |
 | Styling | Tailwind CSS | scaffolded; version not independently re-verified since Phase 1 |
 | DB/Auth/Realtime | Supabase | `@supabase/ssr` 0.12.4, `@supabase/supabase-js` 2.112.3 |
-| Object storage | Cloudflare R2 | not yet integrated; Phase 6 |
+| Object storage | Cloudflare R2 | Application integration is present in the uncommitted Phase 6 working tree; live R2 end-to-end behavior is not verified |
 | Hosting | Vercel | not yet deployed |
 | Source control | GitHub | project repository is pushed to `origin/main` |
 
@@ -86,9 +86,12 @@ upgrades.
 | 10 | Deployment | Vercel + Supabase + R2 production configuration |
 | 11 | Performance & Scale | Only after MVP works and real bottlenecks are identified |
 
-**Current status:** Phase 5 implementation and live security verification are
-complete. Final project-control closure is still pending the final
-documentation/Git checkpoint.
+**Current status:** Phase 6 media implementation (backend, upload, timeline,
+gallery, and viewer) is present in an uncommitted working tree. Local checks
+are recorded in `TRIP_CHALO_CURRENT_STATE.md`; hosted Supabase, live R2, and
+device verification remain open. The approved Phase 6 Experience Specification
+is the product contract and is not itself evidence of implementation or
+verification.
 
 ---
 
@@ -281,23 +284,10 @@ Do not infer from the Phase 5 tests that the following are already verified:
 
 ## 11. Current Git / project-control state
 
-Pre-verification checkpoint:
-
-`858bd7d` — `Complete Phase 5 membership and invitation implementation`
-
-This checkpoint was pushed to `origin/main`.
-
-**Important:** it is not the final Phase 5 closure checkpoint.
-
-Before declaring Phase 5 closed:
-
-1. reconcile all canonical documentation;
-2. inspect `git status`;
-3. inspect `git diff`;
-4. confirm no unintended source/database changes;
-5. create the final documentation/closure commit;
-6. push it;
-7. record the resulting authoritative checkpoint.
+At the documentation update, the repository is on branch `phase6-integration`
+at `77edda3` (`docs: add phase 6 experience spec`) with uncommitted Phase 6
+changes. This is a point-in-time report; inspect Git before consequential work.
+No Phase 6 commit, push, hosted migration, or deployment is reported.
 
 ---
 
@@ -328,7 +318,7 @@ Graphify is **not** an architectural authority and does not replace repository
 inspection, database inspection, tests, or persistent project documentation.
 
 The currently known Graphify output reflects older commit `21532f0f` and is
-therefore **stale relative to the Phase 5 implementation** until regenerated.
+therefore **stale relative to the Phase 6 working tree** until regenerated.
 
 Any important Graphify finding must be checked against the actual repository and
 database.
@@ -337,13 +327,14 @@ database.
 
 ## 14. Future work / open decisions
 
-These remain outside the completed Phase 5 work:
+These remain outside the current verified Phase 6 work:
 
 - Password reset flow
 - Ownership transfer
-- Phase 6 R2 architecture and upload flow
-- R2 signed URL strategy
-- Deleted-trip media cleanup
+- Hosted Supabase verification/deployment for migrations `0016`–`0018`
+- Live Cloudflare R2 end-to-end verification
+- Browser/device and two-account verification
+- R2 reconciliation and stale pending-media cleanup strategy
 - Chat / Realtime
 - Broader testing strategy for Phase 9
 - Production deployment
