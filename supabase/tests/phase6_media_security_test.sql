@@ -15,7 +15,9 @@
 --           visible to every trip member (documented, see the NOTICE).
 --   T19     (only if role supabase_auth_admin exists) signup trigger still fires after 0017.
 --
--- PREREQUISITES: migrations 0001-0017 applied (T15 and T19 need 0017). Run as the `postgres` role.
+-- PREREQUISITES: migrations 0001-0018 applied (T11-T13 need 0018's fail_media_upload/captured_at behaviour; T15 and T19 need
+--   0017). Migration 0019 does not change anything this file asserts; supabase/tests/phase6_security_hardening_test.sql covers 0019.
+--   Run as the `postgres` role.
 --   * Local / throwaway DB:  psql -v ON_ERROR_STOP=1 -f supabase/tests/phase6_media_security_test.sql
 --   * Hosted Supabase: prefer a branch or staging project. It is written to be non-destructive: it runs
 --     inside ONE transaction that always ends in ROLLBACK, and any failed assertion aborts the
@@ -191,6 +193,8 @@ end $$;
 
 -- ===== Added in the integration pass (Claude 4): tests for the 0016 changes and RLS =====
 
+-- NOTE: state is READ as the owner (reset role): on the hosted project service_role holds no table privileges (0019, and already true
+--       before it); it only calls the SECURITY DEFINER RPCs under test.
 -- T11: fail_media_upload is service_role-only, touches only the caller's own PENDING row
 do $$
 declare v4 uuid; v_denied boolean := false; v_st text;
@@ -210,12 +214,16 @@ begin
   if public.fail_media_upload(v4, 'bbbbbbbb-0000-0000-0000-00000000000b'::uuid) then   -- someone else's id: no-op
     raise exception 'FAIL T11b0: non-uploader reported a change';
   end if;
+  reset role;
   select processing_status into v_st from public.media where id = v4;
+  set local role service_role;
   if v_st <> 'pending' then raise exception 'FAIL T11b: non-uploader changed row (%)', v_st; end if;
   if not public.fail_media_upload(v4, 'aaaaaaaa-0000-0000-0000-00000000000a'::uuid) then
     raise exception 'FAIL T11c0: own pending row not reported as changed';
   end if;
+  reset role;
   select processing_status into v_st from public.media where id = v4;
+  set local role service_role;
   if v_st <> 'failed' then raise exception 'FAIL T11c: expected failed, got %', v_st; end if;
   if public.fail_media_upload(v4, 'aaaaaaaa-0000-0000-0000-00000000000a'::uuid) then   -- already failed: no change
     raise exception 'FAIL T11c1: second call reported a change';
@@ -223,7 +231,9 @@ begin
   if public.fail_media_upload(current_setting('t.m1')::uuid, 'aaaaaaaa-0000-0000-0000-00000000000a'::uuid) then  -- ready row
     raise exception 'FAIL T11d0: ready row reported as changed';
   end if;
+  reset role;
   select processing_status into v_st from public.media where id = current_setting('t.m1')::uuid;
+  set local role service_role;
   reset role;
   if v_st <> 'ready' then raise exception 'FAIL T11d: ready row was changed (%)', v_st; end if;
   raise notice 'PASS T11 fail_media_upload semantics';

@@ -29,6 +29,14 @@ present in the working tree. Local application and SQL verification were
 reported as passing. The work is uncommitted. No hosted Supabase, production
 R2, or device verification is reported.
 
+**Database security hardening (migration `0019`, prepared, NOT applied to hosted):**
+a read-only inspection of the hosted project found migrations `0001`–`0018`
+applied and the grants/RLS described under "Phase 6 — Media" below. `0019`
+removes excess table privileges, corrects default privileges for future
+application tables, and closes the `messages` UPDATE gap. Phase 6 should not be
+called security-closed until `0019` is applied and verified on the hosted
+project (see `TRIP_CHALO_HANDOFF.md`).
+
 ---
 
 ## Current Git checkpoint
@@ -106,7 +114,47 @@ this documentation task**:
 - Lint: 0 errors and 1 warning (`<img>` in `MemberAvatar.tsx`). Whether that
   warning predates this work is unknown.
 
-**Not verified/reported:** hosted Supabase migration state, Cloudflare R2
+**Verified in a separate security review (executed, not user-reported):**
+
+- Hosted project, read-only catalog queries: migrations `0001`–`0018` recorded;
+  PostgreSQL 17.6; all six application tables owned by `postgres`; `anon` holds no
+  table privileges; `authenticated` additionally holds `TRUNCATE`, `REFERENCES`,
+  `TRIGGER`, `MAINTAIN` (not `TRUNCATE` on `media`); `service_role` holds no
+  `SELECT/INSERT/UPDATE/DELETE` on any application table; the default ACL for
+  `postgres` in `public` grants `TRUNCATE/REFERENCES/TRIGGER/MAINTAIN` to the
+  API roles; both confirmation overloads are not executable by `authenticated`;
+  the `authenticator` role preloads `safeupdate`; the hosted tables were empty
+  (0 rows in `messages`, `media`, `trips`) at inspection time.
+- Migration content parity: the SQL recorded for all 18 applied migrations on the hosted
+  project matches the committed files at `4f3d8bd` (comment- and whitespace-insensitive).
+- Schema parity: a canonical fingerprint of functions, policies, grants, columns,
+  constraints, indexes and triggers was compared between the hosted project and a
+  replay of the committed migrations on PostgreSQL 17 with hosted-like roles and
+  default privileges. Everything compared was identical except (a) extension
+  objects installed in a different schema in the replay, (b) the `postgres`
+  default-ACL entry, and (c) the `media` table ACL, which on hosted lacks
+  `TRUNCATE` for `authenticated`/`service_role` and is not explained by any
+  recorded migration statement. The cause of (c) is unknown; `0019` normalises it.
+- Migration `0019` replayed on that PostgreSQL 17 environment: new
+  `supabase/tests/phase6_security_hardening_test.sql` (H1–H11) passes; the
+  existing media suite passes; negative controls fail on the pre-`0019` schema;
+  `0019` is idempotent and yields the same final state with or without the `media`
+  ACL drift. The replay is not Supabase (no PostgREST, stubbed `auth`).
+- Independent review follow-up (2026-11-12), hosted catalog read-only: `postgres` has
+  **no GLOBAL default-ACL entry** (only `public`/`storage`-scoped ones); there are no
+  table or column grants to `PUBLIC` on the six tables; the API roles are members of
+  no other role, so their effective privileges equal their explicit ACL entries; all
+  six tables have RLS enabled; `confirm_media_upload`/`fail_media_upload` are SECURITY
+  DEFINER, owned by `postgres` and executable only by `service_role`. The exact
+  pre-apply ACL snapshot (Q0) is recorded in the `0019` runbook.
+- `0019` was tightened after that review: the reset now includes `PUBLIC`, and the
+  `postgres` table default is also revoked at the global level (a no-op on hosted).
+  Locally, the previous `0019` left a simulated global default grant and simulated
+  `PUBLIC` table/column grants in place, and the old H1 passed with a `PUBLIC`
+  column grant on `profiles`; the revised migration removes them and the revised
+  tests fail on them.
+
+**Not verified/reported:** hosted Supabase behaviour of `0019`, Cloudflare R2
 end-to-end behavior, deployment, browser/device behavior, and two-account UI
 behavior. Do not treat local database tests as hosted database verification.
 
@@ -178,7 +226,9 @@ structure. Do not assume it is current without checking its source commit.
 ## Current work / next step
 
 **Phase 6 — Media.** The implementation and local checks are present/reported,
-but remain uncommitted. Before deployment, review the full source/database diff
+but remain uncommitted. Migration `0019` (security hardening) is prepared and
+must be applied and verified on the hosted project after local verification and
+explicit approval. Before deployment, review the full source/database diff
 and confirm the hosted migration state. Then verify on a staging/branch project,
 exercise real R2 upload/confirm/download/delete, and run browser/device and
 two-account checks. Do not treat the local PostgreSQL test run as hosted

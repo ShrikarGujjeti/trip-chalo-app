@@ -19,7 +19,24 @@ The following is **user-reported and was not rerun during this documentation upd
 
 Local database tests do not establish hosted Supabase behavior. Live Cloudflare R2, browser/device, and two-account UI behavior are not verified here.
 
+## Database security hardening (0019) — prepared, not applied
+
+- `supabase/migrations/0019_security_hardening.sql` and
+  `supabase/tests/phase6_security_hardening_test.sql` are in the working tree.
+- Replay evidence (PostgreSQL 17, hosted-like roles/defaults) is recorded in
+  `TRIP_CHALO_CURRENT_STATE.md`. Hosted state was inspected read-only: `0001`–`0018`
+  recorded, tables empty.
+- Apply order: run `npx supabase db reset` locally, run both SQL suites as `postgres`
+  (17 + 11 PASS lines), run hosted Q0 and save its output, then (with explicit approval)
+  `npx supabase db push`, then the read-only Q1–Q9 in
+  `docs/PHASE6_0019_DEPLOYMENT_RUNBOOK.md`, then the two-user Data API check (runbook §6).
+- `0019` is forward-only; the runbook's §7 reversal is for emergencies only.
+- Phase 7 rule: new tables are created by `postgres`, enable RLS and GRANT explicitly
+  (no automatic grants any more); chat edits `content` only. H11 enforces the first part.
+
 ## Next steps
+
+0. Apply and verify `0019` as above (nothing else is blocked on it except calling Phase 6 security-closed).
 
 1. Review the full uncommitted application and migration changes before any deployment.
 2. If proceeding to hosted verification, first inspect the linked project’s migration state and use an appropriate staging/branch database.

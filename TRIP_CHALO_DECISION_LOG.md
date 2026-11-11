@@ -546,6 +546,83 @@ configured.
 **Status:** Supported by migration `0017`; local SQL test success is
 user-reported. Hosted grants have not been inspected in this task.
 
+### Table privileges, default privileges and `messages` UPDATE (migration `0019`)
+
+**Decision:** One forward-only, idempotent migration: (1) `REVOKE ALL` on the six
+application tables from `PUBLIC`, `anon`, `authenticated`, `service_role`, then re-grant
+exactly the intended privileges (profiles/trips/trip_members CRUD; invitations
+SELECT, INSERT; media SELECT, DELETE; messages SELECT, INSERT, DELETE and
+`UPDATE (content)`); (2) `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA
+public REVOKE ALL ON TABLES FROM anon, authenticated, service_role`, and the same at
+the global level (PostgreSQL adds a schema-scoped default to the global one, and a
+schema-scoped REVOKE cannot cancel a global grant; hosted has no global entry, so it
+is a no-op there); (3) tighten
+`messages_update_sender` to require current membership of the row's trip on the old
+and new row; (4) make `messages.edited_at` server-controlled with a trigger.
+No historical migration is edited. `supabase_admin` default privileges are not
+changed. `service_role` keeps no direct table privileges (the application uses it
+only for SECURITY DEFINER RPCs, and on the hosted project it already has none).
+
+**Root cause (Git history + recorded hosted SQL):** both problems originate in the Phase 2/3
+migrations, not in Phase 6. `0007` (`messages_update_sender`, sender check only) and
+`0008` (grants) were committed together (`e5b39a8`). `0008` granted CRUD to `authenticated`
+and ran `REVOKE ALL ... FROM anon`, but never revoked the platform's default grants from
+`authenticated` or `service_role`, and it granted UPDATE on all `messages` columns. No later
+migration touched `messages`. Local and hosted show the same ACLs because both come from
+the same default ACL of the `postgres` role. All 18 migrations recorded on the hosted project
+match the committed files (comment/whitespace-insensitive), so local/hosted migration content
+is the same. A table-level `REVOKE` also removes column-level grants (verified).
+
+**Why:**
+- Tables created by `postgres` receive `TRUNCATE/REFERENCES/TRIGGER/MAINTAIN` for the
+  API roles from the role's default ACL; `0008` never removed them. `TRUNCATE`
+  ignores RLS but is not exposed by PostgREST, so this is excess privilege, not a
+  demonstrated browser exploit. Future tables would inherit the same grants.
+- A sender could change `messages.trip_id`. Verified on PostgreSQL 17: an `UPDATE`
+  whose WHERE clause references any column is refused (PostgreSQL then also applies
+  the SELECT policy to the new row), but `UPDATE messages SET trip_id = <foreign trip>`
+  with no WHERE clause succeeded and the foreign trip's members could read the
+  message. On the hosted project that form is blocked in practice because
+  `authenticator` preloads `safeupdate` and PostgREST filters reference a column;
+  that is a platform side effect, so the policy and column grants no longer rely on it.
+- Product consequence: a departed member can no longer edit messages of a trip
+  they left (consistent with INSERT). DELETE rules are unchanged.
+
+**Functions are not covered by a default ACL:** `ALTER DEFAULT PRIVILEGES ... IN
+SCHEMA` can only add to the global default, so a function created in `public` keeps
+PUBLIC EXECUTE unless its migration revokes it. The convention (revoke from public,
+grant to the roles that need it) stays; `phase6_security_hardening_test.sql` (H4b)
+fails if any SECURITY DEFINER function in `public` is executable by `anon`.
+
+**Rule for future tables:** every new application table must be created by
+`postgres`, enable RLS, and GRANT what it needs explicitly; nothing is granted
+automatically and `anon`/`PUBLIC` get nothing. Platform upgrades could re-apply
+defaults, so H4 checks a probe table plus the global and `public` default ACL, and
+H11 fails on any table in `public` that breaks the rule.
+
+**No rollback migration:** `0019` is forward-only. The pre-apply ACLs were not
+uniform (`media`), so a generic "undo" would be wrong. The runbook holds a reversal
+derived from the hosted Q0 snapshot, replayed locally to reproduce that snapshot
+exactly, for emergencies only (it reopens the vulnerabilities). The forward fix
+would be `0020`.
+
+**Historical migrations stay untouched:** all 18 are applied on hosted with matching
+SQL. Editing `0007`/`0008` would only change fresh replays: hosted would never re-run
+them, local and hosted would diverge, and `0019` would still be required. A rebaseline
+is not justified: the history is consistent, just incomplete.
+
+**Status:** VERIFIED on a local PostgreSQL 17 replay with hosted-like roles and
+defaults (hardening suite H1–H11, media suite T1–T19, negative controls incl.
+simulated global-default and PUBLIC drift, idempotency, drift normalisation).
+Hosted application of `0019`: NOT DONE. The exploit via the Data API was not
+executed against real PostgREST.
+
+### Test environment note
+
+`phase6_media_security_test.sql` T11 read table state while running as
+`service_role`, which holds no table privileges on the hosted project; it passed
+only where `service_role` had broader grants. It now reads state as the owner.
+
 ### User-facing media navigation and signed URL boundary
 
 **Decision:** Viewer selection is represented by the `media` query parameter;
