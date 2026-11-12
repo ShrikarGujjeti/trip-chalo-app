@@ -1,7 +1,10 @@
 # Phase 6 — migration 0019 deployment runbook
 
-Status: **prepared, not executed.** Nothing here has been applied to the hosted project.
-Every command that changes the hosted database requires explicit approval first.
+Status: **`0019` is applied to the hosted project** (by the project owner; hosted
+`schema_migrations` records `0019`) and catalog-verified (Q0–Q9, 2026-11-12). Section 6
+(real Data API check on hosted) is not done (planned for the next dedicated security-testing pass) and the R2 flow is deliberately deferred (R2 not enabled); a local two-user Data API
+test is recorded in `TRIP_CHALO_CURRENT_STATE.md`. The steps below are kept as the
+record. Any command that changes the hosted database still requires explicit approval first.
 
 ## 0. What 0019 changes (and does not)
 
@@ -116,8 +119,8 @@ With user A (member of TA only) and user B (owner of TB):
 - `PATCH` of `{"content": "..."}` on A's own message → 200; `edited_at` is now set;
 - `PATCH` of `{"edited_at": "2000-01-01"}` → denied;
 - B lists messages of TB → never sees A's message.
-- With the service-role key: the media confirm flow still works end to end. This needs R2 to be enabled (it is
-  not at last check).
+- With the service-role key: the media confirm flow still works end to end. This needs R2, which is deliberately
+  not enabled (deferred); it is not part of this checkpoint.
 
 ## 7. Reversal (emergency only)
 
@@ -151,7 +154,7 @@ fix as `0020`. Do not delete the `0019` row from `schema_migrations`.
 
 ## 8. Not covered here
 
-R2 (not enabled on the Cloudflare account at last check: the API returned "Please enable R2"), real browser/device
+R2 (deliberately not enabled; its upload/confirm lifecycle testing is deferred to a later Phase 6 stage), real browser/device
 checks, the Phase 5 invitation UI, and the origin of the hosted `media` ACL difference (no `TRUNCATE` for
 `authenticated`/`service_role`; no recorded migration statement explains it). 0019 normalises it, and the local
 replay confirmed that normalising from that state gives the same final ACLs as a clean replay.

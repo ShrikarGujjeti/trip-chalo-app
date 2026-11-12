@@ -5,8 +5,8 @@
 ## Current state
 
 - **Phase:** 6 — Media.
-- **Repository:** branch `phase6-integration`, HEAD `77edda3` (`docs: add phase 6 experience spec`). The Phase 6 implementation and verification changes are uncommitted.
-- **Hosted systems:** no hosted Supabase migration, production R2 action, deployment, commit, or push is reported.
+- **Repository:** branch `phase6-integration`, HEAD `3728041` (`feat: add phase 6 security hardening migration`), single parent `14c283e` (`4f3d8bd` is an earlier ancestor); pushed (origin at the same commit when last checked, 2026-11-12). Only documentation edits and the archived Q0 evidence file are uncommitted.
+- **Hosted systems:** migration `0019` is applied to hosted Supabase (ref `wfpcgrdgltogoeuofhdt`; `schema_migrations` records `0019`, 19 migrations). No R2 action (R2 is deferred, see below) or deployment is reported.
 - **Experience specification:** `TRIP_CHALO_PHASE6_EXPERIENCE_SPEC_v2.md` remains the product contract; it is not evidence of runtime verification.
 
 ## Phase 6 verification
@@ -19,30 +19,76 @@ The following is **user-reported and was not rerun during this documentation upd
 
 Local database tests do not establish hosted Supabase behavior. Live Cloudflare R2, browser/device, and two-account UI behavior are not verified here.
 
-## Database security hardening (0019) — prepared, not applied
+## Database security hardening (0019) — applied to hosted; catalog-verified and locally tested
 
-- `supabase/migrations/0019_security_hardening.sql` and
-  `supabase/tests/phase6_security_hardening_test.sql` are in the working tree.
-- Replay evidence (PostgreSQL 17, hosted-like roles/defaults) is recorded in
-  `TRIP_CHALO_CURRENT_STATE.md`. Hosted state was inspected read-only: `0001`–`0018`
-  recorded, tables empty.
-- Apply order: run `npx supabase db reset` locally, run both SQL suites as `postgres`
-  (17 + 11 PASS lines), run hosted Q0 and save its output, then (with explicit approval)
-  `npx supabase db push`, then the read-only Q1–Q9 in
-  `docs/PHASE6_0019_DEPLOYMENT_RUNBOOK.md`, then the two-user Data API check (runbook §6).
+Full evidence and scope are in `TRIP_CHALO_CURRENT_STATE.md` (Phase 6 — Media). Keep the
+three kinds of evidence separate:
+
+- **Hosted catalog checks Q0–Q9:** Q0 baseline captured 2026-11-11 22:06:50 UTC (file
+  `docs/hosted_Q0_pre_apply_snapshot_2026-11-12.md`, pre-migration, archived unchanged);
+  Q1–Q9 are post-migration and passed after `0019` was applied and were re-queried read-only on 2026-11-12 at
+  02:59 UTC. `authenticated` can UPDATE only `messages.content`; `messages_update_sender`
+  requires sender and `is_trip_member(trip_id)` on old and new row; `messages_set_edited_at`
+  exists; `public` table defaults and effective table privileges are tightened; the two media
+  RPCs are SECURITY DEFINER, owner `postgres`, executable by `service_role` only. The
+  `storage`-schema default privileges are still broad and are out of scope of `0019`.
+  Production data at baseline: 0 messages, 0 media, 0 trips.
+- **Local two-user Data API test (local Supabase stack, not hosted), 2026-11-12 UTC:**
+  Users A `74778453-4eab-4665-8a8a-7794af832ffc` and B `f54bf50b-1212-4ddb-a326-b9adeba14de3`;
+  Trip A `a9704639-7a14-4986-bb1c-d8279dc49e52`, Trip B `2705b9e7-3f01-4113-9b94-083b53f06fdd`;
+  message `7d56f349-e132-4810-a190-e669675f862e`. A's own content edit succeeded (HTTP 200,
+  `edited_at` set by the trigger). A's attempts to change `trip_id`, `sender_id` and `edited_at`
+  were each HTTP 403 / `42501` / `permission denied for table messages` (generic table-level
+  message, not column-specific). B querying Trip B returned `[]` (weak: the message was not in
+  Trip B); B querying A's exact message id returned `[]` (the direct isolation test).
+- **SQL suites on a cloud PostgreSQL 17 replay (run by Claude, not by the project owner's
+  local Supabase run):** media suite 17 PASS, hardening suite 11 PASS (H1–H11). This replay
+  is not Supabase (no PostgREST, stubbed `auth`) and not the hosted project. The owner's own
+  local results are the user-reported ones listed under "Phase 6 verification" above.
+
+Not tested (see "Outstanding verification" below): non-owner member editing their own
+message; editing another user's message in the same trip; a departed member editing an
+earlier message; concurrent edits; the full media/R2 lifecycle (R2 deferred); hosted Data
+API behaviour; browser/device and two-account UI flows. None of this makes Phase 6 complete.
+
+## R2 — explicitly deferred
+
+**R2 decision (2026-11-12): Cloudflare R2 is deliberately NOT enabled at this stage.** Nothing has been enabled, configured, activated or purchased for R2, and no live R2 upload, confirm, download or delete test has been attempted. The R2 lifecycle remains unverified; its testing is deferred to a later Phase 6 implementation/verification stage and will be revisited only if a later approved task requires it. R2 is not a blocker for the documentation checkpoint, and the deferral does not make Phase 6 complete.
+
+## Outstanding verification (next dedicated security-testing pass; not run yet)
+
+These are planned, not permanently deferred. Do not call any of them verified until it has
+been executed and the result recorded.
+
+- **A. Hosted Data API.** The two-user test above ran on the local Supabase stack. Hosted
+  catalog checks Q0–Q9 are a separate evidence class and do not prove hosted PostgREST/JWT
+  behaviour. Schedule a controlled hosted Data API behavioural test with disposable test
+  accounts and data.
+- **B. Four message cases** (next local behavioural-testing pass): a non-owner member editing
+  their own message (legitimate access works); editing another user's message in the same
+  trip (denied); a departed member editing an earlier message (denied after membership
+  removal); concurrent edits (record the actual conflict/overwrite behaviour).
+- **C. Browser/device and two-account UI.** Unverified future work; DB/API tests do not prove
+  UI behaviour.
+
+Cleanup pending (local database only): two disposable Auth users, two trips, two owner
+memberships and one message are still present on purpose. Delete them in a controlled way
+after the evidence is preserved. The test password was weak and disposable and is not recorded.
+
 - `0019` is forward-only; the runbook's §7 reversal is for emergencies only.
 - Phase 7 rule: new tables are created by `postgres`, enable RLS and GRANT explicitly
   (no automatic grants any more); chat edits `content` only. H11 enforces the first part.
 
 ## Next steps
 
-0. Apply and verify `0019` as above (nothing else is blocked on it except calling Phase 6 security-closed).
+0. Preserve the local two-user test evidence, then clean up the local test data in a controlled way (see above).
 
-1. Review the full uncommitted application and migration changes before any deployment.
+1. Review the full source/database diff (now committed) before any deployment.
 2. If proceeding to hosted verification, first inspect the linked project’s migration state and use an appropriate staging/branch database.
-3. Exercise the real R2 upload, confirmation, URL, and deletion flows.
+3. R2 upload, confirmation, URL, and deletion flows: deferred (see "R2 — explicitly deferred"); do not enable R2 unless a later approved task requires it.
 4. Run browser/device and two-account checks; record results separately from local test results.
-5. Recheck Git status and diff before deciding on commit/push.
+5. Next security-testing pass: the hosted Data API test (A) and the four message cases (B) listed under "Outstanding verification".
+6. Recheck Git status; these documentation updates are uncommitted.
 
 ## Guardrails
 

@@ -489,7 +489,7 @@ code changes. The repository, database, migrations, tests, and project-control
 documents remain authoritative.
 
 The previously recorded Graphify source commit `21532f0f` predates the Phase 6
-working tree and should therefore be treated as **STALE relative to the current
+Phase 6 media work and should therefore be treated as **STALE relative to the current
 media implementation** until the graph is regenerated.
 
 ---
@@ -614,8 +614,10 @@ is not justified: the history is consistent, just incomplete.
 **Status:** VERIFIED on a local PostgreSQL 17 replay with hosted-like roles and
 defaults (hardening suite H1–H11, media suite T1–T19, negative controls incl.
 simulated global-default and PUBLIC drift, idempotency, drift normalisation).
-Hosted application of `0019`: NOT DONE. The exploit via the Data API was not
-executed against real PostgREST.
+Hosted application of `0019`: DONE by the project owner; hosted catalog checks
+Q0–Q9 passed (see `TRIP_CHALO_CURRENT_STATE.md`). The cross-trip move and
+protected-column updates were exercised through the Data API only on the local
+Supabase stack (2026-11-12), not on hosted.
 
 ### Test environment note
 
@@ -647,7 +649,10 @@ the owner cannot currently leave their own trip.
 
 ### Cloudflare R2 operations
 
-Application integration is present in the Phase 6 working tree. **Live
+Application integration is present in the committed Phase 6 code. **R2 is
+not enabled and live verification is deliberately deferred (2026-11-12):** nothing was
+enabled, configured or purchased, and no live R2 test was attempted; it will be
+revisited only if a later approved task requires it. **Live
 verification remains open** for bucket CORS, presigned PUT/Content-Type and
 checksum behavior, signed GET, HEAD/confirm, deletion, and bulk deletion.
 Reconciliation and stale pending-object cleanup remain future operational

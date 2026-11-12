@@ -13,7 +13,9 @@ At the start of a new session:
 
 # TRIP CHALO — CURRENT STATE
 
-> Snapshot reconciled for Phase 6 on 2026-10-27. Phase 6 verification details
+> Snapshot reconciled for Phase 6 on 2026-10-27; updated 2026-11-12 for the hosted
+> `0019` catalog verification and the local two-user Data API test.
+> Phase 6 verification details
 > below distinguish repository-verified facts from user-reported execution.
 > This is CONTEXT, not a substitute for the repository, database, or Git state.
 > 
@@ -25,26 +27,30 @@ At the start of a new session:
 **Phase 6 — Media**
 
 **Status:** Media upload, gallery/timeline, viewer, and database hardening are
-present in the working tree. Local application and SQL verification were
-reported as passing. The work is uncommitted. No hosted Supabase, production
-R2, or device verification is reported.
+committed on `phase6-integration` (pushed to origin). Local application and SQL
+verification were reported as passing. Migration `0019` is applied to the hosted
+Supabase project and its catalog state was verified (see "Phase 6 — Media" below).
+Live R2 (deliberately deferred, not enabled), hosted Data API, browser/device and full
+end-to-end verification are NOT done, so Phase 6 is not complete.
 
-**Database security hardening (migration `0019`, prepared, NOT applied to hosted):**
-a read-only inspection of the hosted project found migrations `0001`–`0018`
-applied and the grants/RLS described under "Phase 6 — Media" below. `0019`
-removes excess table privileges, corrects default privileges for future
-application tables, and closes the `messages` UPDATE gap. Phase 6 should not be
-called security-closed until `0019` is applied and verified on the hosted
-project (see `TRIP_CHALO_HANDOFF.md`).
+**Database security hardening (migration `0019`, applied to hosted; catalog-verified):**
+`0019` removes excess table privileges, corrects default privileges for future
+application tables, and closes the `messages` UPDATE gap. Hosted catalog checks
+Q0–Q9 and a local two-user Data API test (both recorded below, kept separate)
+support the message-security hardening. They are catalog and local-runtime
+evidence, not proof of the full Phase 6 workflow; Cloudflare R2 upload/confirm,
+hosted Data API behaviour, browser/device and two-account UI checks remain open
+(see `TRIP_CHALO_HANDOFF.md`).
 
 ---
 
 ## Current Git checkpoint
 
-- **HEAD:** `77edda3` — `docs: add phase 6 experience spec`
-- **Branch:** `phase6-integration`
-- **Working tree:** contains uncommitted Phase 6 application, migration, test, and package changes, plus these documentation edits.
-- **Remote/hosted deployment:** no Phase 6 push or hosted Supabase change reported.
+- **HEAD:** `3728041` — `feat: add phase 6 security hardening migration`
+- **Branch:** `phase6-integration`; `origin/phase6-integration` was at the same commit when last checked (2026-11-12).
+- **Branch history:** `4f3d8bd` feat: complete phase 6 media experience (earlier ancestor) → `14c283e` Delete AGENTS.md → `3728041` (single parent `14c283e`).
+- **Working tree:** clean at `3728041` apart from these documentation edits and the new evidence file `docs/hosted_Q0_pre_apply_snapshot_2026-11-12.md`, which are uncommitted.
+- **Hosted:** migration `0019` is applied to the hosted Supabase project (hosted `schema_migrations` records `0019`; 19 migrations). No R2 action (R2 is deferred) or deployment is reported.
 
 ---
 
@@ -154,17 +160,100 @@ this documentation task**:
   column grant on `profiles`; the revised migration removes them and the revised
   tests fail on them.
 
-**Not verified/reported:** hosted Supabase behaviour of `0019`, Cloudflare R2
-end-to-end behavior, deployment, browser/device behavior, and two-account UI
-behavior. Do not treat local database tests as hosted database verification.
+**Hosted Supabase catalog verification of migration `0019` (Q0–Q9, read-only):**
+Project `trip-chalo` (ref `wfpcgrdgltogoeuofhdt`), PostgreSQL 17. Q0 was captured
+before `0019` was applied; Q1–Q9 were recorded after. The post-apply state was
+re-queried read-only by Claude on 2026-11-12 at 02:59 UTC (hosted
+`schema_migrations`: latest `0019`, 19 recorded) and matched every recorded result
+below. Query text: `docs/PHASE6_0019_VERIFY_QUERIES.sql`. The Q0 baseline file is
+`docs/hosted_Q0_pre_apply_snapshot_2026-11-12.md` (the original file, archived unchanged;
+pre-migration, captured with `0019` not applied). Q1–Q9 are post-migration. Raw Q1–Q9
+outputs are not stored in the repository.
+
+| Check | Scope | Result |
+|---|---|---|
+| Q0 pre-migration baseline | Captured 2026-11-11 22:06:50 UTC (2026-11-12 03:36 IST). Latest migration `0018`, 18 recorded; six tables; no column ACLs, no PUBLIC grants, no GLOBAL default row; `media` lacked TRUNCATE for `authenticated`/`service_role` (known difference); `messages_update_sender` checked only `sender_id`; no `messages_set_edited_at` trigger; public-table defaults granted to `anon`/`authenticated`/`service_role` | Baseline captured |
+| Q1 effective table privileges | `has_table_privilege` for `public`, `anon`, `authenticated`, `service_role` | PASS. `authenticated` only: invitations INSERT,SELECT; media DELETE,SELECT; messages DELETE,INSERT,SELECT; profiles/trip_members/trips DELETE,INSERT,SELECT,UPDATE. Nothing for `public`/`anon`/`service_role`; no TRUNCATE/REFERENCES/TRIGGER/MAINTAIN |
+| Q2 default privileges | `postgres` default ACLs | PASS. `public` tables now `{postgres=arwdDxtm/postgres}`; no GLOBAL row. Out of scope and unchanged: `storage`-schema defaults still grant broadly to `anon`/`authenticated`/`service_role`; `0019` does not fix them |
+| Q3 column UPDATE on `messages` | Effective column privilege | PASS. Only `authenticated` on `content` |
+| Q4 UPDATE policy | `pg_policies` | PASS. `messages_update_sender` USING and WITH CHECK are both `(sender_id = auth.uid()) AND is_trip_member(trip_id)` |
+| Q5 edited_at trigger | `pg_trigger`, function ACL | PASS. `messages_set_edited_at` enabled; calls `set_message_edited_at()`; not SECURITY DEFINER; no EXECUTE for `anon`/`authenticated`/`service_role` |
+| Q6 SECURITY DEFINER exposure | Public functions executable by `anon` | PASS. None. Catalog privilege check only, not a guarantee about every application operation |
+| Q7 data baseline | Row counts | PASS. `messages`, `media`, `trips` all 0 (the owner also confirmed no real data before the migration). Point-in-time; also 0 at the 02:59 UTC re-check |
+| Q8 ownership / RLS / access | Six application tables | PASS. Owner `postgres`, RLS enabled, no effective privileges for `anon`/`public` |
+| Q9 media RPC configuration | `confirm_media_upload(uuid,bigint,uuid)`, `fail_media_upload(uuid,uuid)` | PASS. SECURITY DEFINER, owner `postgres`, EXECUTE for `service_role` only. Does not prove the R2 upload/confirm lifecycle |
+
+These are catalog checks. They do not demonstrate runtime behaviour through the
+hosted Data API.
+
+**Local two-user Data API behavioural test of `0019` (local Supabase stack, NOT hosted):**
+Run by the project owner on 2026-11-12 (UTC) against the local Supabase stack (API
+`127.0.0.1:54321`, Postgres `127.0.0.1:54322`) on branch `phase6-integration`.
+`0019_security_hardening.sql` was applied locally with `npx supabase migration up`
+(no database reset). Two disposable local Auth users authenticated through the local
+Auth password endpoint: A `74778453-4eab-4665-8a8a-7794af832ffc` (`test-a@tripchalo.local`)
+and B `f54bf50b-1212-4ddb-a326-b9adeba14de3` (`test-b@tripchalo.local`); each request
+below used that user's own JWT. Passwords and tokens are not recorded here. Local
+`trips`, `messages` and `media` counts were 0 before the test.
+
+Fixtures: Trip A `a9704639-7a14-4986-bb1c-d8279dc49e52` (created by A) and Trip B
+`2705b9e7-3f01-4113-9b94-083b53f06fdd` (created by B). Each creator received an
+`owner` membership from the `on_trip_created` trigger (`add_trip_owner_as_member()`).
+Message `7d56f349-e132-4810-a190-e669675f862e` in Trip A, sender A, created 02:44:05 UTC.
+`information_schema.column_privileges` for `authenticated` on `public.messages`:
+UPDATE on `content` only (not `trip_id`, `sender_id`, `edited_at`); table-level INSERT,
+SELECT and DELETE present, no table-level UPDATE.
+
+| UTC time | Request (as) | Observed | Result |
+|---|---|---|---|
+| 02:44:38 | PATCH `trip_id` to Trip B (A) | HTTP 403, `42501`, `permission denied for table messages` | Blocked |
+| 02:46:31 | PATCH `content` (A) | HTTP 200, updated row returned; `trip_id` and `sender_id` unchanged; `edited_at` changed by the database | PASS |
+| 02:47:30 | PATCH `sender_id` to B (A) | HTTP 403, `42501`, `permission denied for table messages` | Blocked |
+| 02:48:02 | PATCH `edited_at` = 2020-01-01 (A) | HTTP 403, `42501`, `permission denied for table messages` | Blocked |
+| 02:48:59 | GET messages `trip_id=eq.<Trip B>` (B) | HTTP 200, `[]` | PASS, weak: the message never belonged to Trip B, so this alone does not prove isolation |
+| 02:49:53 | GET messages `id=eq.<A's message id>` (B) | HTTP 200, `[]` | PASS. The direct cross-user visibility test |
+
+The three blocked updates returned the generic table-level message, not a
+column-specific error; do not describe them as column-specific. The successful update
+is runtime evidence of the `edited_at` trigger. No migration, schema, grant, policy or
+application code was changed during the test; nothing was deleted; no commit, push
+or deployment was made.
+
+Not tested: a non-owner member editing their own message; editing another user's
+message within the same trip; a departed member editing an earlier message; concurrent
+edits; the full media/R2 upload and confirmation lifecycle (`confirm_media_upload` /
+`fail_media_upload` runtime); hosted Data API behaviour; every other RLS edge case.
+
+Cleanup pending: the local database still holds the two test Auth users, two trips,
+two owner memberships and one message. They were deliberately not deleted; clean up in
+a controlled way after the evidence has been preserved. The test accounts used a weak
+disposable password.
+
+**Not verified/reported:** Cloudflare R2 end-to-end behavior (upload, confirm,
+download, delete; deliberately not enabled, see "R2 decision" below), hosted
+Data API (PostgREST/JWT) behaviour of `0019`, browser/device behavior, two-account UI
+behavior, and the untested message cases listed above. Do not treat the catalog
+checks, local database tests, or the local Data API test as complete Phase 6
+verification.
+
+### R2 decision and outstanding verification
+
+**R2 decision (2026-11-12): Cloudflare R2 is deliberately NOT enabled at this stage.** Nothing has been enabled, configured, activated or purchased for R2, and no live R2 upload, confirm, download or delete test has been attempted. The R2 lifecycle remains unverified; its testing is deferred to a later Phase 6 implementation/verification stage and will be revisited only if a later approved task requires it. R2 is not a blocker for the documentation checkpoint, and the deferral does not make Phase 6 complete.
+
+Outstanding security verification, planned for the next dedicated security-testing pass
+and **not run yet** (none of it is verified): (A) a controlled hosted Data API
+(PostgREST/JWT) behavioural test with disposable accounts and data; hosted catalog
+Q0–Q9 do not prove it; (B) the four message cases listed above, in the next local
+behavioural-testing pass, including recording the actual concurrent-edit behaviour;
+(C) browser/device and two-account UI checks.
 
 ## Current repository state
 
-The Phase 6 working tree contains the media upload, timeline/gallery, viewer,
-and signed-URL flow; storage integration; migrations `0016`–`0018`; and the
+The Phase 6 code on `phase6-integration` contains the media upload, timeline/gallery,
+viewer, and signed-URL flow; storage integration; migrations `0016`–`0019`; and the
 application and SQL security test suites. `package.json` exposes the
-`test:phase6` script. Git status shows these implementation, test, migration,
-and package changes are uncommitted. Inspect the live tree and `git status`
+`test:phase6` script. These are committed (HEAD `3728041`); only documentation edits
+and the Q0 evidence file are uncommitted. Inspect the live tree and `git status`
 before relying on this summary.
 
 ## Confirmed architecture in active use
@@ -182,8 +271,10 @@ are present under `src/modules/invitations/` and `src/modules/memberships/`
 - Migrations `0010_profile_and_invitation_visibility.sql` and
 `0011_invitation_email_case_insensitivity.sql` are present and have been
 deployed to the linked hosted Supabase project
-- Phase 6 migrations `0016`–`0018` and the media upload/viewer modules are
-present locally; hosted application/database behavior is not established here
+- Phase 6 migrations `0016`–`0019` and the media upload/viewer modules are
+present and committed; `0016`–`0018` were already recorded on hosted before `0019`,
+which is now applied and catalog-verified; hosted media/R2 runtime behavior is not
+established here
 
 Deleted (confirmed):
 
@@ -218,21 +309,24 @@ After code changes, refresh with:
 
 `graphify update .`
 
-The graph predates the Phase 6 working tree and is stale for current media
+The graph predates the Phase 6 media work and is stale for current media
 structure. Do not assume it is current without checking its source commit.
 
 ---
 
 ## Current work / next step
 
-**Phase 6 — Media.** The implementation and local checks are present/reported,
-but remain uncommitted. Migration `0019` (security hardening) is prepared and
-must be applied and verified on the hosted project after local verification and
-explicit approval. Before deployment, review the full source/database diff
-and confirm the hosted migration state. Then verify on a staging/branch project,
-exercise real R2 upload/confirm/download/delete, and run browser/device and
-two-account checks. Do not treat the local PostgreSQL test run as hosted
-Supabase verification.
+**Phase 6 — Media.** The implementation and local checks are committed on
+`phase6-integration`. Migration `0019` (security hardening) is applied to the hosted
+project and catalog-verified, and its message hardening was exercised through the
+local two-user Data API test. Next: preserve the local test evidence, then clean up the
+local test data in a controlled way (still pending; not approved yet); in the next
+dedicated security-testing pass run the hosted Data API test and the four untested
+message cases (non-owner member edit, same-trip edit of another user's message, departed
+member, concurrent edits); run browser/device and two-account checks. R2 upload/confirm/
+download/delete testing is deferred to a later Phase 6 stage (R2 not enabled). Review the full source/database diff and
+confirm the hosted migration state before any deployment. Do not treat catalog checks
+or local tests as complete Phase 6 verification.
 
 ## Important recent decisions (see `TRIP_CHALO_DECISION_LOG.md` for full detail)
 

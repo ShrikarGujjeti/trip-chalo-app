@@ -59,7 +59,7 @@ if an actual bottleneck justifies it.
 | Runtime | Node | 22.20.0 |
 | Styling | Tailwind CSS | scaffolded; version not independently re-verified since Phase 1 |
 | DB/Auth/Realtime | Supabase | `@supabase/ssr` 0.12.4, `@supabase/supabase-js` 2.112.3 |
-| Object storage | Cloudflare R2 | Application integration is present in the uncommitted Phase 6 working tree; live R2 end-to-end behavior is not verified |
+| Object storage | Cloudflare R2 | Application integration is present in the committed Phase 6 code; R2 is deliberately not enabled yet, so live R2 end-to-end behavior is unverified (testing deferred) |
 | Hosting | Vercel | not yet deployed |
 | Source control | GitHub | project repository is pushed to `origin/main` |
 
@@ -87,9 +87,12 @@ upgrades.
 | 11 | Performance & Scale | Only after MVP works and real bottlenecks are identified |
 
 **Current status:** Phase 6 media implementation (backend, upload, timeline,
-gallery, and viewer) is present in an uncommitted working tree. Local checks
-are recorded in `TRIP_CHALO_CURRENT_STATE.md`; hosted Supabase, live R2, and
-device verification remain open. The approved Phase 6 Experience Specification
+gallery, and viewer) is committed on `phase6-integration`. Migration `0019`
+(security hardening) is applied to the hosted Supabase project and
+catalog-verified, and its message hardening was also exercised through a local
+two-user Data API test. Live R2 (deliberately deferred; not enabled), hosted Data API behaviour, and browser/device
+verification remain open, so Phase 6 is not complete; evidence is in
+`TRIP_CHALO_CURRENT_STATE.md`. The approved Phase 6 Experience Specification
 is the product contract and is not itself evidence of implementation or
 verification.
 
@@ -284,10 +287,11 @@ Do not infer from the Phase 5 tests that the following are already verified:
 
 ## 11. Current Git / project-control state
 
-At the documentation update, the repository is on branch `phase6-integration`
-at `77edda3` (`docs: add phase 6 experience spec`) with uncommitted Phase 6
-changes. This is a point-in-time report; inspect Git before consequential work.
-No Phase 6 commit, push, hosted migration, or deployment is reported.
+At the documentation update (2026-11-12), the repository is on branch
+`phase6-integration` at `3728041` (`feat: add phase 6 security hardening
+migration`), pushed to origin, with only documentation edits and one evidence file uncommitted. This is a
+point-in-time report; inspect Git before consequential work. Hosted migration
+`0019` is applied; R2 is deferred and not enabled, and no deployment is reported.
 
 ---
 
@@ -318,7 +322,7 @@ Graphify is **not** an architectural authority and does not replace repository
 inspection, database inspection, tests, or persistent project documentation.
 
 The currently known Graphify output reflects older commit `21532f0f` and is
-therefore **stale relative to the Phase 6 working tree** until regenerated.
+therefore **stale relative to the Phase 6 media code** until regenerated.
 
 Any important Graphify finding must be checked against the actual repository and
 database.
@@ -331,8 +335,9 @@ These remain outside the current verified Phase 6 work:
 
 - Password reset flow
 - Ownership transfer
-- Hosted Supabase verification/deployment for migrations `0016`–`0018`
-- Live Cloudflare R2 end-to-end verification
+- Hosted runtime verification beyond the `0019` catalog checks (migrations `0016`–`0019` are recorded on hosted)
+- Live Cloudflare R2 end-to-end verification (deliberately deferred; R2 not enabled)
+- Hosted Data API (PostgREST/JWT) behavioural test, four additional message-security cases, and browser/device two-account UI checks (next dedicated security-testing pass)
 - Browser/device and two-account verification
 - R2 reconciliation and stale pending-media cleanup strategy
 - Chat / Realtime
